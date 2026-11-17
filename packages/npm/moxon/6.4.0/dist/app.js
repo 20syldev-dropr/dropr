@@ -1,0 +1,69 @@
+import express from 'express';
+import { env } from './config/env.js';
+import { endpoints } from './endpoints/index.js';
+import { build } from './endpoints/router.js';
+import { setupCors, setupParsers } from './middleware/cors.js';
+import { errorHandler } from './middleware/error.js';
+import { jsonResponseMiddleware } from './middleware/json.js';
+import { loggerMiddleware } from './middleware/logger.js';
+import { rateLimitMiddleware } from './middleware/ratelimit.js';
+import { endpointCheckMiddleware, versionCheckMiddleware } from './middleware/version.js';
+import deleteRoutes from './routes/delete.js';
+import getRoutes from './routes/get.js';
+import indexRoutes from './routes/index.js';
+import patchRoutes from './routes/patch.js';
+import postRoutes from './routes/post.js';
+import { since } from './utils/helpers.js';
+import { error } from './utils/response.js';
+const app = express();
+// Security headers, CORS, static files
+setupCors(app);
+// Custom JSON response
+app.use(jsonResponseMiddleware);
+// Rate limiting, ahead of body parsing so malformed bodies are counted too
+app.use(rateLimitMiddleware);
+// Body parsing
+setupParsers(app);
+// Request logging
+app.use(loggerMiddleware);
+// Root routes (before version check)
+app.use(indexRoutes);
+// Version & endpoint validation
+app.use('/:version', versionCheckMiddleware);
+app.use('/:version/:endpoint', endpointCheckMiddleware);
+// Load plugins if available
+const entry = './plugins/index.js';
+try {
+    const { default: plugins } = (await import(entry));
+    for (const plugin of plugins)
+        app.use(plugin);
+}
+catch {
+    // No plugins bundled in this build
+}
+// GET /levenshtein stops at v5 in its contract, which would answer 404 from v6: it keeps its 405 stub instead
+app.get('/:version/levenshtein', (req, res, next) => {
+    if (!since(req.version, 6)) {
+        next();
+        return;
+    }
+    error(res, 405, 'This endpoint only supports POST requests.');
+});
+// Versioned routes, declared endpoints first
+app.use(build(endpoints));
+app.use(getRoutes);
+app.use(postRoutes);
+app.use(patchRoutes);
+app.use(deleteRoutes);
+// JSON 404 fallback
+app.use((req, res) => {
+    error(res, 404, `Endpoint '${req.path}' does not exist.`);
+});
+// Error handling (after routes)
+app.use(errorHandler);
+// Start server
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(env.PORT, () => console.log(`API is running on\n    - http://127.0.0.1:${env.PORT}\n    - http://localhost:${env.PORT}`));
+}
+export default app;
+//# sourceMappingURL=app.js.map

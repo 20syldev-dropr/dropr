@@ -1,0 +1,58 @@
+/**
+ * Error that carries the status of the answer, for the endpoints that refuse with something other than a 400.
+ */
+export class HttpError extends Error {
+    status;
+    /**
+     * Builds the error.
+     *
+     * @param status - HTTP status of the answer
+     * @param message - Message sent in the body of the answer
+     */
+    constructor(status, message) {
+        super(message);
+        this.status = status;
+    }
+}
+/**
+ * Result of an endpoint that answers with a status other than 200.
+ */
+export class Reply {
+    body;
+    status;
+    /**
+     * Builds the reply.
+     *
+     * @param body - Value sent as the JSON body
+     * @param status - HTTP status of the answer
+     */
+    constructor(body, status) {
+        this.body = body;
+        this.status = status;
+    }
+}
+/**
+ * Declares an endpoint contract and infers its parameter names, so `run` receives typed values.
+ * The HTTP router and the documentation manifest are both built from it, so the two cannot drift apart.
+ *
+ * @param endpoint - Contract of the route: `since` and `until` are the first and the last API version serving it
+ * (all of them when omitted), `params` are read from the query string on GET and from the JSON body on POST,
+ * `example` is the input the documentation runs to show a real output, and an error thrown by `run` becomes a 400
+ * carrying its message, or the status of an HttpError
+ * @returns The same contract, typed with its parameter names
+ */
+export function define(endpoint) {
+    return endpoint;
+}
+/**
+ * Gives a contract the modules of the version being served, so that it follows the overrides of every version.
+ * A contract must never import a module itself: that would freeze it on one version and make the manifest load
+ * the native libraries.
+ *
+ * @param req - Request the contract is run for
+ * @returns The modules of the requested version, typed as the latest one
+ */
+export function api(req) {
+    return req.module;
+}
+//# sourceMappingURL=define.js.map
